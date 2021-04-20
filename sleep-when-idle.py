@@ -236,16 +236,7 @@ class SleepWhenIdle:
         self.prev_check = self.last_idle  # time of previous tick
         self.now = self.last_idle  # current time
 
-        if self.args.wake_up is not None:
-            Logger.info("Resetting any programmed wake-up")
-            if not self.args.pretend:
-                res = subprocess.run(
-                    ["rtcwake", "-m", "disable"],
-                    capture_output=True,
-                    check=True,
-                    text=True,
-                )
-                Logger.debug("Command 'rtcwake -m disable' stdout: %s", res.stdout)
+        self.delete_any_wakeup()
 
     def run(self):
         """Main task, run forever"""
@@ -264,7 +255,9 @@ class SleepWhenIdle:
 
             # skipping a check period indicates a sleep cycle
             if self.now > next_check + check_period:
-                self.reset_idle()
+                # reset completely
+                self.reset()
+                continue
 
             # check CPU usage
             if self.args.cpu is not None:
@@ -288,6 +281,8 @@ class SleepWhenIdle:
             # go for a new period
             self.prev_check = self.now
 
+        # on normal termination, delete any wakeup previously programmed
+        self.delete_any_wakeup()
         Logger.info("Terminated")
 
     def reset_idle(self, idle_delta=None):
@@ -365,11 +360,24 @@ class SleepWhenIdle:
         Logger.info("System is idle, going to sleep")
         if self.args.wake_up is not None:
             self.program_wakeup()
-        # reset state
-        self.reset()
+        # reset last_idle to prevent multiple sleep requests in a row
+        self.last_idle = self.now
         if not self.args.pretend:
             # sleep; note: the request is asynchronous
             subprocess.run(["systemctl", self.args.state], check=True)
+
+    def delete_any_wakeup(self):
+        """Delete any wake-up previously programmed"""
+        if self.args.wake_up is not None:
+            Logger.info("Resetting any programmed wake-up")
+            if not self.args.pretend:
+                res = subprocess.run(
+                    ["rtcwake", "-m", "disable"],
+                    capture_output=True,
+                    check=True,
+                    text=True,
+                )
+                Logger.debug("Command 'rtcwake -m disable' stdout: %s", res.stdout)
 
     def program_wakeup(self):
         """Program wake-up"""
