@@ -40,6 +40,7 @@ import datetime
 import json
 import logging
 import multiprocessing
+import pwd
 import re
 import signal
 import subprocess
@@ -184,10 +185,22 @@ class SleepWhenIdle:
             help="local time for wake-up (in the next 24 hours)",
         )
         parser.add_argument(
-            "-x",
-            "--x-user",
+            "-u",
+            "--user",
             metavar="USER",
+            help="user name to be used for X or audio check",
+        )
+        parser.add_argument(
+            "-x",
+            "--x-input",
+            action="store_true",
             help="check lack of X inputs from the user, via `xprintidle`",
+        )
+        parser.add_argument(
+            "-a",
+            "--audio",
+            action="store_true",
+            help="check lack of audio output, via `pulseaudio`",
         )
         parser.add_argument(
             "-p",
@@ -214,6 +227,14 @@ class SleepWhenIdle:
         # parse command line arguments
         self.args = parser.parse_args()
 
+        if self.args.x_input or self.args.audio:
+            if not self.args.user:
+                parser.error(
+                    "x_input and audio options requires to specify the user name with -u USER"
+                )
+            self.user = self.args.user
+            self.uid = pwd.getpwnam(self.user)[2]
+
         if self.args.pretend:
             self.args.debug = True
 
@@ -236,8 +257,8 @@ class SleepWhenIdle:
         self.reset()
 
         # validate access to xprintidle if requested
-        if self.args.x_user is not None:
-            self.get_x_user_idle()
+        if self.args.x_input is not None:
+            self.get_x_input_idle()
 
     def _signal_handler(self, signum, _frame) -> None:
         """Signal handler"""
@@ -284,12 +305,16 @@ class SleepWhenIdle:
             if self.args.network is not None:
                 self.check_net()
 
+            # check audio usage
+            if self.args.audio:
+                self.check_audio()
+
             # check user input in X server
             if (
-                self.args.x_user is not None
+                self.args.x_input is not None
                 and self.now > self.last_idle + self.wanted_idle_duration
             ):
-                self.check_x_user_input()
+                self.check_x_input()
 
             # enough idle time ?
             if self.now > self.last_idle + self.wanted_idle_duration:
@@ -314,6 +339,33 @@ class SleepWhenIdle:
             if last_idle > self.last_idle:
                 self.last_idle = last_idle
                 Logger.debug("Updating last_idle as %s", self.last_idle)
+
+    def check_audio(self):
+        """Check audio output"""
+        # root has no direct access to the pulseaudio daemon
+        # To detect audio output from the user pulseaudio daemon, use the following command:
+        # XDG_RUNTIME_DIR=/run/user/uid runuser -l user -w XDG_RUNTIME_DIR -c "pacmd list-sink-inputs"
+        # and check for "state: RUNNING" in the output
+        res = subprocess.run(
+            [
+                "runuser",
+                "-l",
+                self.user,
+                "-w",
+                "XDG_RUNTIME_DIR",
+                "-c",
+                "pacmd list-sink-inputs",
+            ],
+            env={"XDG_RUNTIME_DIR": f"/run/user/{self.uid}"},
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+
+        if "state: RUNNING" in res.stdout:
+            Logger.debug("audio is running")
+            # audio output is active
+            self.reset_idle()
 
     def check_cpu(self):
         """Check CPU usage over a period"""
@@ -347,13 +399,13 @@ class SleepWhenIdle:
 
         self.prev_net_stat = net_stat
 
-    def get_x_user_idle(self) -> int:
+    def get_x_input_idle(self) -> int:
         """Get idle time of user under X"""
         # root has no access to the Xsession
         # To launch xprintidle and have a proper access to the Xsession, use the following command:
         # DISPLAY=:0 runuser -l user -w DISPLAY -c xprintidle
         res = subprocess.run(
-            ["runuser", "-l", self.args.x_user, "-w", "DISPLAY", "-c", "xprintidle"],
+            ["runuser", "-l", self.user, "-w", "DISPLAY", "-c", "xprintidle"],
             env={"DISPLAY": ":0"},
             capture_output=True,
             check=True,
@@ -363,9 +415,9 @@ class SleepWhenIdle:
         Logger.debug("x_idle: %d ms", x_idle_ms)
         return x_idle_ms
 
-    def check_x_user_input(self):
+    def check_x_input(self):
         """Check inputs from user in Xserver"""
-        x_idle_ms = self.get_x_user_idle()
+        x_idle_ms = self.get_x_input_idle()
         x_idle = datetime.timedelta(milliseconds=x_idle_ms)
 
         if x_idle < self.wanted_idle_duration:

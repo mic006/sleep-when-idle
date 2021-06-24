@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Environment="HOME=/root"
-ExecStart=/usr/bin/python -u /utils/sleep-when-idle.py -t 10m -w 1:59 -x user -p 1m -c 5 -n 300
+ExecStart=/usr/bin/python -u /utils/sleep-when-idle.py -t 10m -w 1:59 -u user -x -a -p 1m -c 5 -n 300
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=sleep-when-idle

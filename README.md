@@ -12,6 +12,7 @@ Desktop environments perform a transition to sleep when there is no input from t
 But the machine can have on-going tasks that shall maintain the machine alive until completion:
 - long download from Internet or the network
 - media served to a TV
+- audio playback
 - heavy CPU task (compilation, compression...)
 
 The `sleep-when-idle` daemon will take these use cases in consideration.
@@ -22,6 +23,7 @@ Here are the possible elements monitored by `sleep-when-idle` to determine wheth
 - no X user inputs (requires `xprintidle`)
 - idle CPU time
 - network traffic
+- audio output
 
 You can also configure a wake-up time (requires `rtcwake`) to perform daily tasks.
 
@@ -37,6 +39,7 @@ You can also configure a wake-up time (requires `rtcwake`) to perform daily task
 - `systemd` for transition to sleep
 - `rtcwake` to set a time for wake-up
 - `xprintidle` to check user inputs to the X server
+- `pulseaudio` to check for active audio output
 
 ## Thanks
 
