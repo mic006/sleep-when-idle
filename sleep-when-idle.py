@@ -75,9 +75,7 @@ def parse_duration(duration_str: str) -> int:
         if not re.fullmatch(r"\d+(?:\.\d*)?", duration_str):
             raise ValueError(f"invalid duration string '{duration_str}'")
         return float(duration_str)
-    years, months, weeks, days, hours, minutes, seconds = map(
-        lambda x: 0 if x is None else int(x), match.groups()
-    )
+    years, months, weeks, days, hours, minutes, seconds = map(lambda x: 0 if x is None else int(x), match.groups())
     days += 365 * years + 30 * months + 7 * weeks
     hours += 24 * days
     minutes += 60 * hours
@@ -124,9 +122,7 @@ class NetStat(typing.NamedTuple):
 
 def get_net_stat() -> NetStat:
     """Get network statistics"""
-    res = subprocess.run(
-        ["ip", "-j", "-s", "link"], capture_output=True, check=True, text=True
-    )
+    res = subprocess.run(["ip", "-j", "-s", "link"], capture_output=True, check=True, text=True)
     parsed_output = json.loads(res.stdout)
     for interface in parsed_output:
         if interface["operstate"] == "UP":
@@ -148,9 +144,7 @@ class SleepWhenIdle:
             signal.signal(sig, self._signal_handler)
 
         # build parser
-        parser = argparse.ArgumentParser(
-            description=__doc__, formatter_class=argparse.RawTextHelpFormatter
-        )
+        parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument(
             "-d",
             "--debug",
@@ -229,9 +223,7 @@ class SleepWhenIdle:
 
         if self.args.x_input or self.args.audio:
             if not self.args.user:
-                parser.error(
-                    "x_input and audio options requires to specify the user name with -u USER"
-                )
+                parser.error("x_input and audio options requires to specify the user name with -u USER")
             self.user = self.args.user
             self.uid = pwd.getpwnam(self.user)[2]
 
@@ -240,19 +232,16 @@ class SleepWhenIdle:
 
         logging.basicConfig(
             level=logging.DEBUG if self.args.debug else logging.INFO,
-            format=("%(asctime)s " if self.args.debug else "")
-            + "%(levelname)-8s %(module)-25s %(message)s",
+            format=("%(asctime)s " if self.args.debug else "") + "%(levelname)-8s %(module)-25s %(message)s",
         )
 
         # context
         self.nb_threads = multiprocessing.cpu_count()
-        self.wanted_idle_duration = (  # wanted idle time before transition to sleep
-            datetime.timedelta(seconds=self.args.time)
+        self.wanted_idle_duration = datetime.timedelta(  # wanted idle time before transition to sleep
+            seconds=self.args.time
         )
         if self.args.cpu is not None:
-            self.cpu_idle_threshold = (  # threshold to consider CPU as idle
-                1 - self.args.cpu / 100
-            )
+            self.cpu_idle_threshold = 1 - self.args.cpu / 100  # threshold to consider CPU as idle
 
         self.reset()
 
@@ -310,10 +299,7 @@ class SleepWhenIdle:
                 self.check_audio()
 
             # check user input in X server
-            if (
-                self.args.x_input is not None
-                and self.now > self.last_idle + self.wanted_idle_duration
-            ):
+            if self.args.x_input is not None and self.now > self.last_idle + self.wanted_idle_duration:
                 self.check_x_input()
 
             # enough idle time ?
@@ -330,9 +316,7 @@ class SleepWhenIdle:
     def reset_idle(self, idle_delta=None):
         """Reset idle time to current"""
         if idle_delta is None:
-            Logger.debug(
-                "System is not considered as idle; resetting last_idle to current time"
-            )
+            Logger.debug("System is not considered as idle; resetting last_idle to current time")
             self.last_idle = self.now
         else:
             last_idle = self.now - idle_delta
@@ -451,9 +435,7 @@ class SleepWhenIdle:
     def program_wakeup(self):
         """Program wake-up"""
         # determine wake-up time: today ?
-        wake_up = datetime.datetime.combine(
-            self.now.date(), self.args.wake_up
-        ).astimezone()
+        wake_up = datetime.datetime.combine(self.now.date(), self.args.wake_up).astimezone()
         if wake_up < self.now:
             # wake_up is tomorrow
             wake_up = datetime.datetime.combine(
@@ -468,9 +450,7 @@ class SleepWhenIdle:
                 check=True,
                 text=True,
             )
-            Logger.debug(
-                "Command 'rtcwake -m no -t %s' stdout: %s", timestamp, res.stdout
-            )
+            Logger.debug("Command 'rtcwake -m no -t %s' stdout: %s", timestamp, res.stdout)
 
 
 if __name__ == "__main__":
