@@ -44,7 +44,9 @@ import pwd
 import re
 import signal
 import subprocess
+import sys
 import threading
+import time
 import typing
 
 Logger = logging.getLogger()
@@ -247,7 +249,18 @@ class SleepWhenIdle:
 
         # validate access to xprintidle if requested
         if self.args.x_input is not None:
-            self.get_x_input_idle()
+            for _retry in range(10):
+                try:
+                    self.get_x_input_idle()
+                    break  # X access is successful
+                except subprocess.CalledProcessError:
+                    # give some time for X to start
+                    time.sleep(10)
+            else:
+                Logger.error(
+                    "user cannot access to the X session; user shall call 'xhost +si:localuser:my_user_name' to allow its own user access to the X session without the MIT-MAGIC-COOKIE-1"
+                )
+                sys.exit(1)
 
     def _signal_handler(self, signum, _frame) -> None:
         """Signal handler"""
@@ -388,6 +401,8 @@ class SleepWhenIdle:
         # root has no access to the Xsession
         # To launch xprintidle and have a proper access to the Xsession, use the following command:
         # DISPLAY=:0 runuser -l user -w DISPLAY -c xprintidle
+        # The user need to allow its own user to access the X session with the MIT-MAGIC-COOKIE-1
+        # by issuing xhost +si:localuser:my_user_name
         res = subprocess.run(
             ["runuser", "-l", self.user, "-w", "DISPLAY", "-c", "xprintidle"],
             env={"DISPLAY": ":0"},
