@@ -42,6 +42,7 @@ import logging
 import multiprocessing
 import pwd
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -219,6 +220,12 @@ class SleepWhenIdle:
             type=int,
             help="maximum number of Rx / Tx packets over a measurement period to consider idle",
         )
+        parser.add_argument(
+            "-C",
+            "--connection",
+            metavar="SS_ARGS",
+            help="check active network connections using 'ss -HOn ${SS_ARGS}'; no connection shall be returned to consider the machine idle\nExample to detect incoming or outgoing SSH connections over IPv6: \"-6 -t state established 'sport 22 or dport 22'\"",
+        )
 
         # parse command line arguments
         self.args = parser.parse_args()
@@ -231,6 +238,9 @@ class SleepWhenIdle:
 
         if self.args.pretend:
             self.args.debug = True
+
+        if self.args.connection:
+            self.args.connection = shlex.split(self.args.connection)
 
         logging.basicConfig(
             level=logging.DEBUG if self.args.debug else logging.INFO,
@@ -311,6 +321,10 @@ class SleepWhenIdle:
             if self.args.audio:
                 self.check_audio()
 
+            # check network connections
+            if self.args.connection:
+                self.check_network_connections()
+
             # check user input in X server
             if self.args.x_input is not None and self.now > self.last_idle + self.wanted_idle_duration:
                 self.check_x_input()
@@ -362,6 +376,20 @@ class SleepWhenIdle:
         if "state: RUNNING" in res.stdout:
             Logger.debug("audio is running")
             # audio output is active
+            self.reset_idle()
+
+    def check_network_connections(self):
+        """Check network connections"""
+        # detect active network connections using ss: ss -HOn ${SS_ARGS}
+        res = subprocess.run(
+            ["ss", "-HOn"] + self.args.connection,
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+
+        if res.stdout:
+            Logger.debug("active network connections")
             self.reset_idle()
 
     def check_cpu(self):
