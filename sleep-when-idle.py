@@ -244,7 +244,7 @@ class SleepWhenIdle:
 
         logging.basicConfig(
             level=logging.DEBUG if self.args.debug else logging.INFO,
-            format=("%(asctime)s " if self.args.debug else "") + "%(levelname)-8s %(module)-25s %(message)s",
+            format=("%(asctime)s " if self.args.pretend else "") + "%(levelname)-8s %(module)-25s %(message)s",
         )
 
         # context
@@ -369,11 +369,11 @@ class SleepWhenIdle:
             ],
             env={"XDG_RUNTIME_DIR": f"/run/user/{self.uid}"},
             capture_output=True,
-            check=True,
+            check=False,  # it may fail if audio is not started yet => consider there is no audio
             text=True,
         )
 
-        if "state: RUNNING" in res.stdout:
+        if res.returncode == 0 and "state: RUNNING" in res.stdout:
             Logger.debug("audio is running")
             # audio output is active
             self.reset_idle()
